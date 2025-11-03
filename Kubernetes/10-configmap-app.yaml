@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chat-config
+  namespace: app
+data:
+  application.yml: |
+    server:
+      port: 8080
+    spring:
+      application:
+        name: chat-app
+      thymeleaf:
+        cache: false
+      kafka:
+        bootstrap-servers: chat-kafka-bootstrap.kafka:9092
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          properties:
+            spring.json.add.type.headers: false
+            acks: all
+        consumer:
+          key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+          properties:
+            spring.json.trusted.packages: com.example.chat.model
+        listener:
+          ack-mode: record
+    chat:
+      kafka:
+        topic: chat.messages
