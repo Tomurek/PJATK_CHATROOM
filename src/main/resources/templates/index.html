@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pl" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- STOMP/SockJS -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body class="flex flex-col h-screen bg-gray-100">
+
+<!-- Górny pasek -->
+<header class="flex items-center justify-between p-4 bg-blue-600 text-white shadow-md">
+    <!-- Lewa część: logo + tytuł -->
+    <div class="flex items-center">
+        <img th:src="@{/images/image.png}" alt="logo" class="h-10 mr-3">
+        <h1 class="text-xl font-bold">Chat Room</h1>
+    </div>
+
+    <!-- Prawa część: zalogowany użytkownik + przycisk Wyloguj -->
+    <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2">
+            <span class="text-sm text-blue-100">Zalogowano jako:</span>
+            <span th:text="${loggedUserName}" class="font-semibold"></span>
+            <div class="w-8 h-8 rounded-full bg-green-400 flex items-center justify-center text-white font-bold"
+                 th:text="${#strings.substring(loggedUserName,0,1)}">
+            </div>
+        </div>
+
+        <!-- Przycisk Wyloguj -->
+        <form th:action="@{/logout}" method="post">
+            <button type="submit"
+                    class="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-full shadow transition duration-150">
+                Wyloguj
+            </button>
+        </form>
+    </div>
+</header>
+
+<!-- Pole odczytu wiadomości -->
+<main id="messages"
+      class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-200">
+
+    <!-- Pętla po wiadomościach -->
+    <div th:each="msg : ${messages}"
+         class="flex items-end"
+         th:classappend="${msg.mine} ? 'justify-end' : 'justify-start'">
+
+        <!-- Avatar (tylko dla innych) -->
+        <div th:if="${!msg.mine}" class="flex-shrink-0 mr-2">
+            <div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold">
+                <span th:text="${#strings.substring(msg.author,0,1)}"></span>
+            </div>
+        </div>
+
+        <!-- Bąbelek wiadomości -->
+        <div th:classappend="${msg.mine} ?
+          'bg-blue-500 text-white rounded-l-xl rounded-tr-xl' :
+          'bg-white text-gray-800 rounded-r-xl rounded-tl-xl'"
+             class="max-w-xs px-4 py-2 shadow">
+            <p th:text="${msg.content}" class="break-words"></p>
+            <small th:text="${msg.author}"
+                   th:classappend="${msg.mine} ? 'text-blue-100' : 'text-gray-500'"
+                   class="block mt-1 text-xs"></small>
+        </div>
+
+        <!-- Avatar (dla swoich) -->
+        <div th:if="${msg.mine}" class="flex-shrink-0 ml-2">
+            <div class="w-8 h-8 rounded-full bg-green-400 flex items-center justify-center text-white font-bold">
+                <span th:text="${#strings.substring(msg.author,0,1)}"></span>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Pole wpisywania -->
+<footer class="p-4 bg-white flex items-center space-x-2 border-t border-gray-300">
+    <form id="chatForm" class="flex w-full space-x-2">
+        <input type="hidden" id="authorInput" th:value="${loggedUserName}"/>
+        <input id="messageInput" type="text" name="message"
+               placeholder="Napisz wiadomość..."
+               class="flex-1 p-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+               autocomplete="off" required>
+        <button type="submit"
+                class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-full text-white font-semibold">
+            Wyślij
+        </button>
+    </form>
+</footer>
+
+<!-- Skrypt STOMP (bez zmian) -->
+<script>
+    let stompClient = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        connectStomp();
+
+        const form = document.getElementById('chatForm');
+        const input = document.getElementById('messageInput');
+        const authorInput = document.getElementById('authorInput');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const content = input.value.trim();
+            const author = (authorInput?.value || 'Ja').trim();
+            if (!content) return;
+
+            if (stompClient && stompClient.connected) {
+                stompClient.send('/app/chat', {}, JSON.stringify({ author, content }));
+            }
+            input.value = '';
+            input.focus();
+        });
+    });
+
+    function connectStomp() {
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, () => {
+            stompClient.subscribe('/topic/greetings', (message) => {
+                try {
+                    const payload = JSON.parse(message.body);
+                    appendMessage(payload);
+                } catch (e) {
+                    console.error('Błąd parsowania wiadomości', e);
+                }
+            });
+        });
+    }
+
+    function appendMessage(msg) {
+        const messages = document.getElementById('messages');
+        const loggedUser = (document.getElementById('authorInput')?.value || 'Ja');
+        const mine = equalsIgnoreCase(msg.author, loggedUser);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex items-end ' + (mine ? 'justify-end' : 'justify-start');
+
+        if (!mine) {
+            const leftAv = document.createElement('div');
+            leftAv.className = 'flex-shrink-0 mr-2';
+            leftAv.innerHTML =
+                `<div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold">
+                   ${escapeHtml((msg.author || 'A').charAt(0).toUpperCase())}
+                 </div>`;
+            wrapper.appendChild(leftAv);
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = (mine
+                ? 'bg-blue-500 text-white rounded-l-xl rounded-tr-xl'
+                : 'bg-white text-gray-800 rounded-r-xl rounded-tl-xl')
+            + ' max-w-xs px-4 py-2 shadow';
+        bubble.innerHTML =
+            `<p class="break-words">${escapeHtml(msg.content || '')}</p>
+             <small class="block mt-1 text-xs ${mine ? 'text-blue-100' : 'text-gray-500'}">
+               ${escapeHtml(msg.author || 'Anon')}
+             </small>`;
+        wrapper.appendChild(bubble);
+
+        if (mine) {
+            const rightAv = document.createElement('div');
+            rightAv.className = 'flex-shrink-0 ml-2';
+            rightAv.innerHTML =
+                `<div class="w-8 h-8 rounded-full bg-green-400 flex items-center justify-center text-white font-bold">
+                   ${escapeHtml((msg.author || 'J').charAt(0).toUpperCase())}
+                 </div>`;
+            wrapper.appendChild(rightAv);
+        }
+
+        const spacer = document.createElement('div');
+        spacer.className = 'mb-4';
+        spacer.appendChild(wrapper);
+
+        messages.appendChild(spacer);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        const map = {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'};
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
+    function equalsIgnoreCase(a, b) {
+        return (a || '').toLowerCase() === (b || '').toLowerCase();
+    }
+</script>
+
+</body>
+</html>
