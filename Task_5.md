@@ -1,26 +1,6 @@
 # Zadanie: Uzupełnienie manifestu Kubernetes Service
 
-Twoim zadaniem jest poprawne uzupełnienie manifestu Kubernetes tak, aby
-wynik był dokładnie taki jak poniżej:
-
-``` yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: chat-app
-  namespace: app
-  labels:
-    app: chat-app
-spec:
-  type: LoadBalancer
-  selector:
-    app: chat-app
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-      protocol: TCP
-```
+Twoim zadaniem jest poprawne uzupełnienie manifestu Kubernetes.
 
 ## Instrukcje do uzupełnienia:
 
