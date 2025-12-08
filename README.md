@@ -7,8 +7,8 @@
 ## 1) Opis: 
 
 Projekt zawiera w sobie podstawową strukturę komunikatora webowego 
-opartego na frameworku Spring Boot 3. Komunikator docelowo deployowany będzie w
-chmurze GCP z wykorzystaniem Kafki jako szyny wiadomości.
+opartego na frameworku Spring Boot 3. Komunikator docelowo deployowany będzie
+na klastrze Kubernetes-a z wykorzystaniem Kafki jako szyny wiadomości.
 Projekt zawiera podsawowe dwa branche 
 - starting_branch - branch startowy
 - final_branch - branch z gotowym rozwiązaniem do weryfikacji zadń.
